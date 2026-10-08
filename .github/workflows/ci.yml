@@ -16,8 +16,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
       - name: No secrets in the tree
-        run: ./scripts/check-secrets.sh
+        run: bash scripts/check-secrets.sh
       - name: gofmt
         run: make fmt-check
       - name: go vet
@@ -35,10 +36,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false
       - name: Install rpm tooling
         run: sudo apt-get update && sudo apt-get install -y rpm
       - name: Build all packages
-        run: ./scripts/build.sh
+        run: bash scripts/build.sh
       - name: Package sanity check
         run: |
           dpkg-deb -I dist/filedrop-agent_*_amd64.deb

@@ -12,7 +12,7 @@ fmt-check:
 	@test -z "$$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
 
 secrets:
-	./scripts/check-secrets.sh
+	bash scripts/check-secrets.sh
 
 # needs shellcheck
 lint:
@@ -23,7 +23,7 @@ lint:
 
 # .deb / .rpm / .tar.gz for amd64 and arm64 into ./dist
 packages:
-	./scripts/build.sh
+	bash scripts/build.sh
 
 clean:
 	rm -rf dist
