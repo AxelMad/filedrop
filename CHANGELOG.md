@@ -32,4 +32,4 @@ First public release. Based on the internal 1.0.0-x line that ran in production 
 - Several directory URLs with sticky "last good" selection (a server with an address in several subnets); the same `DIRECTORY_URL` list is now meant for all machines.
 - Auto-cleanup of files and folders with 4-day / 1-day / last-day warnings; self-healing desktop shortcut.
 
-[2.0.0]: https://github.com/OWNER/filedrop/releases/tag/v2.0.0
+[2.0.0]: https://github.com/AxelMad/filedrop/releases/tag/v2.0.0
