@@ -1,0 +1,11 @@
+# Settings of the shared-folder auto-cleanup (filedrop-cleanup.timer).
+# Changes are picked up on the next run (at boot or once a day) - nothing
+# has to be restarted.
+
+# How many days an item stays in the shared folder before it is deleted
+# automatically. Warnings are shown 4 days before, 1 day before and on the
+# day of deletion.
+RETENTION_DAYS=14
+
+# Language of the warning pop-up: auto, en or ru.
+NOTICE_LANG=auto

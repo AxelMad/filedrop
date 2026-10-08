@@ -1,0 +1,12 @@
+# DHCP network, hostnames NOT in DNS: agents register with filedrop-directory.
+# A laptop and its panel may be in the same subnet or in different ones - the
+# agents work that out themselves (see docs/networks.md).
+ROLE=auto
+HOSTNAME_PATTERN=^(?P<role>panel|pc)-(?P<site>.+)$
+PANEL_ROLES=panel
+CLIENT_ROLES=pc
+RESOLVE_MODE=directory
+# List EVERY address of the directory server (one per subnet it sits in).
+# The same line works on all machines, in whatever subnet they are.
+DIRECTORY_URL=http://192.168.10.5:8781, http://10.20.0.5:8781
+DIRECTORY_TOKEN=put-the-token-printed-by-the-directory-installer-here

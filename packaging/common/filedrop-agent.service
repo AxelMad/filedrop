@@ -1,0 +1,25 @@
+[Unit]
+Description=filedrop-agent - file exchange between a computer and its room's panel
+After=network-online.target sshd.service ssh.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=filedrop
+Group=filedrop
+ExecStart=/usr/bin/filedrop-agent -config /etc/filedrop/agent.conf
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/filedrop /var/lib/filedrop
+ProtectHome=yes
+# Users drop their own files and folders into the shared folder, so the agent
+# (an unprivileged account) must be able to chmod and move entries it does not
+# own. Only these two capabilities are granted, nothing else; ProtectSystem
+# and ReadWritePaths above still confine every write to /opt/filedrop.
+AmbientCapabilities=CAP_DAC_OVERRIDE CAP_FOWNER
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_FOWNER
+
+[Install]
+WantedBy=multi-user.target

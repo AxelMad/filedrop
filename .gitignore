@@ -1,0 +1,21 @@
+# build output
+/dist/
+
+# SECRETS - never commit these
+*.key
+fleet_key
+fleet_key.pub
+filedrop-fleet-key/
+id_ed25519
+id_ed25519.pub
+/rollout.conf
+/hosts.tsv
+/hosts.txt
+/agent.conf
+.env
+
+# editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

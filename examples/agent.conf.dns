@@ -1,0 +1,8 @@
+# Simplest setup: machines are reachable by hostname (DNS, mDNS/avahi or
+# /etc/hosts), names look like  pc-<room>  and  panel-<room>.
+ROLE=auto
+HOSTNAME_PATTERN=^(?P<role>panel|pc)-(?P<site>.+)$
+PANEL_ROLES=panel
+CLIENT_ROLES=pc
+RESOLVE_MODE=dns
+SHARED_FOLDER_NAME=Shared folder

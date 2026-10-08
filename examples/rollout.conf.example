@@ -1,0 +1,23 @@
+# Copy to rollout.conf (it is git-ignored) and edit.   Used by scripts/rollout.sh
+
+# File with one hostname or IP per line (# comments allowed). See hosts.example.txt
+HOSTS_FILE=./hosts.txt
+
+# Account on the machines. If it is not root it must be allowed to use sudo
+# without a password prompt (or run the rollout per machine by hand).
+SSH_USER=admin
+USE_SUDO=yes
+SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o BatchMode=yes"
+
+# Where the built packages are (scripts/build.sh writes ./dist, or unpack a
+# GitHub release there)
+PACKAGE_DIR=./dist
+
+# The fleet key created once with `filedrop-keygen` - NEVER commit it
+FLEET_KEY=./filedrop-fleet-key/fleet_key
+
+# The agent.conf pushed to every machine (see the other examples)
+AGENT_CONF=./agent.conf
+
+# How many machines to deploy to at the same time
+PARALLEL=5

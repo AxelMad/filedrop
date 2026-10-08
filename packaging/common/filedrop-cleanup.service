@@ -1,0 +1,6 @@
+[Unit]
+Description=filedrop - auto-cleanup of the shared folder with warnings
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/filedrop/filedrop-cleanup.sh

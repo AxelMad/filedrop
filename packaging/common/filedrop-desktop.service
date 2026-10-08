@@ -1,0 +1,6 @@
+[Unit]
+Description=filedrop - keeps the shared-folder shortcut on the desktop
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/filedrop/filedrop-desktop-link.sh --all

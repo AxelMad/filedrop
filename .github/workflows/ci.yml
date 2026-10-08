@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: No secrets in the tree
+        run: ./scripts/check-secrets.sh
+      - name: gofmt
+        run: make fmt-check
+      - name: go vet
+        run: make vet
+      - name: go test
+        run: go test -race ./...
+      - name: shellcheck
+        run: make lint
+
+  packages:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install rpm tooling
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Build all packages
+        run: ./scripts/build.sh
+      - name: Package sanity check
+        run: |
+          dpkg-deb -I dist/filedrop-agent_*_amd64.deb
+          rpm -qpl dist/filedrop-agent-*.x86_64.rpm
+          ./dist/filedrop-agent-linux-amd64 version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/

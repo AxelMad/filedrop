@@ -1,0 +1,6 @@
+# Machine names that follow no scheme at all: force the side and name the
+# counterpart explicitly. On the laptop:
+ROLE=client
+PEER_HOSTNAMES=lecture-hall-board
+RESOLVE_MODE=dns
+# On the panel use  ROLE=panel  and  PEER_HOSTNAMES=<the laptop's name>

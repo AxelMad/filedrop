@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+case "$1" in
+    remove|purge)
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        systemctl reload sshd >/dev/null 2>&1 || systemctl reload ssh >/dev/null 2>&1 || true
+        echo "filedrop-agent removed. /opt/filedrop, /etc/filedrop and the user 'filedrop' were left in place (they may hold undelivered files) - remove them by hand if you want."
+        ;;
+esac
+exit 0

@@ -1,0 +1,69 @@
+# filedrop-agent configuration.   Documentation: docs/configuration.md
+# After editing:  sudo systemctl restart filedrop-agent
+# Check the result:  filedrop-agent check
+
+# ---- Who is who -----------------------------------------------------------
+# The side (panel = receives, client = laptop/PC = sends) is derived from the
+# machine's hostname. HOSTNAME_PATTERN is a regular expression (Go/RE2 syntax)
+# with a mandatory named group "role". PANEL_ROLES / CLIENT_ROLES list the
+# values of that group meaning "panel" / "client". The counterpart of a
+# machine is its own hostname with ONLY the role part replaced:
+#   pc-room12  <->  panel-room12
+ROLE=auto
+HOSTNAME_PATTERN=^(?P<role>panel|pc)-(?P<site>.+)$
+PANEL_ROLES=panel
+CLIENT_ROLES=pc
+
+# Names that do not follow a scheme at all: force the side and name the
+# counterpart explicitly (hostnames or IP addresses, comma separated).
+#ROLE=client
+#PEER_HOSTNAMES=panel-lab
+
+# ---- How to find the counterpart's IP address ----------------------------
+#   dns       - system resolver: DNS / mDNS / /etc/hosts (simplest)
+#   directory - lookup service filedrop-directory that agents register with
+#               (DHCP network without DNS registration)
+#   static    - a local file "hostname<TAB>ip"
+RESOLVE_MODE=dns
+
+# RESOLVE_MODE=directory. List EVERY address of the directory server (comma
+# separated), e.g. one per subnet it sits in; the agent tries them and sticks
+# to the one that works from this machine. The same line can be used on all
+# machines, whatever subnet they are in.
+#DIRECTORY_URL=http://192.168.1.10:8781
+#DIRECTORY_TOKEN=change-me
+
+# RESOLVE_MODE=static
+#STATIC_HOSTS_FILE=/etc/filedrop/hosts.tsv
+
+# ---- Folders (normally leave as is; matches ChrootDirectory in sshd) -----
+INBOX_DIR=/opt/filedrop/inbox
+OUTBOX_DIR=/opt/filedrop/outbox
+SENT_DIR=/opt/filedrop/outbox/.sent
+# The inbox path as seen from INSIDE the receiver's sshd chroot
+# (ChrootDirectory=/opt/filedrop, so the real /opt/filedrop/inbox is /inbox).
+REMOTE_INBOX_PATH=/inbox
+
+# Interfaces (glob patterns) whose addresses are neither reported to the
+# directory nor used to judge "same subnet": container/VM bridges. This is the
+# built-in default, uncomment only to change it.
+#IGNORE_INTERFACES=lo docker* br-* veth* virbr* lxcbr* lxdbr* cni* flannel* cali* podman* vmnet* vboxnet*
+
+# Name of the desktop shortcut users see (same on panel and laptop/PC).
+SHARED_FOLDER_NAME=Shared folder
+
+# ---- Transport ------------------------------------------------------------
+SSH_USER=filedrop
+SSH_KEY=/etc/filedrop/id_ed25519
+SSH_PORT=22
+# Host keys are accepted on first contact and pinned afterwards.
+KNOWN_HOSTS_FILE=/var/lib/filedrop/known_hosts
+# Force the SFTP protocol in scp. Needed with OpenSSH 8.7-8.9 clients;
+# OpenSSH 9.0+ uses SFTP by default, older clients do not know the flag.
+#SCP_SFTP_FLAG=yes
+
+# ---- Timing ---------------------------------------------------------------
+REGISTER_INTERVAL_SEC=45
+POLL_INTERVAL_SEC=2
+# How many polls in a row a file's size must stay unchanged before it is sent
+SETTLE_CHECKS=2

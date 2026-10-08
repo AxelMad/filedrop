@@ -1,0 +1,15 @@
+Package: filedrop-agent
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Depends: openssh-client
+Recommends: openssh-server, zenity
+Maintainer: @MAINTAINER@
+Homepage: @URL@
+Description: automatic file hand-over from a computer to its room's panel
+ filedrop moves files and folders that a user drops into the "shared folder"
+ of a laptop/PC to the interactive panel in the same room, with no further
+ interaction. One package for every machine: the role (sender or receiver)
+ is derived from the hostname via a configurable naming scheme. Transfer
+ uses scp/SFTP with a dedicated key into a chrooted, shell-less account.

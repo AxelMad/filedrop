@@ -1,0 +1,3 @@
+/etc/ssh/sshd_config.d/filedrop.conf
+/etc/filedrop/agent.conf
+/etc/filedrop/cleanup.conf

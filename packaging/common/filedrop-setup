@@ -1,0 +1,231 @@
+#!/bin/sh
+# filedrop-setup - sets up this machine for filedrop. Idempotent; safe to run
+# any number of times. Called automatically by the RPM/DEB package scripts and
+# by the tarball installer.
+#
+# Usage:
+#   filedrop-setup                      create user/folders, fix permissions,
+#                                       enable services (what the package does)
+#   filedrop-setup --key FILE           install the fleet private key FILE on
+#                                       this machine and authorize its public half
+#                                       (replaces authorized_keys: key rotation)
+#   filedrop-setup --generate-key       generate a NEW key pair on this machine
+#                                       (for a single laptop<->panel pair)
+#   filedrop-setup --authorize KEY      allow a public key (file or the key text)
+#                                       to send files to this machine (panel side)
+#   filedrop-setup --teardown           stop services, remove desktop shortcuts
+#                                       (used when the package is removed)
+#
+# Keys: filedrop uses ONE dedicated SSH key. Create it once with
+# `filedrop-keygen`, then put it on every machine with `--key`. No key ships
+# inside any package - every installation owns its own.
+
+set -u
+
+FD_HOME=/opt/filedrop
+CONF_DIR=/etc/filedrop
+KEY="$CONF_DIR/id_ed25519"
+AUTH="$FD_HOME/.ssh/authorized_keys"
+LIBDIR=/usr/lib/filedrop
+AUTH_OPTS="no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty"
+
+say()  { echo "filedrop-setup: $*"; }
+warn() { echo "filedrop-setup: WARNING: $*" >&2; }
+die()  { echo "filedrop-setup: ERROR: $*" >&2; exit 1; }
+
+[ "$(id -u)" = "0" ] || die "run as root (sudo filedrop-setup ...)"
+
+ensure_user() {
+    getent group filedrop >/dev/null || groupadd --system filedrop
+    if ! getent passwd filedrop >/dev/null; then
+        nologin=/usr/sbin/nologin
+        [ -x "$nologin" ] || nologin=/sbin/nologin
+        useradd --system --gid filedrop --home-dir "$FD_HOME" --no-create-home \
+            --shell "$nologin" --comment "filedrop-agent service account" filedrop
+    fi
+    # useradd --system leaves the account locked ("!" in /etc/shadow) and sshd
+    # then refuses even key authentication for it. "*" is valid but has no
+    # guessable password; login works with the filedrop key only.
+    usermod -p '*' filedrop >/dev/null 2>&1 || true
+}
+
+ensure_dirs() {
+    mkdir -p "$FD_HOME/inbox" "$FD_HOME/outbox/.sent" "$FD_HOME/.ssh" "$CONF_DIR"
+
+    # sshd requires the chroot directory to be root-owned and not writable
+    # by anybody else.
+    chown root:root "$FD_HOME"
+    chmod 0755 "$FD_HOME"
+
+    chown -R filedrop:filedrop "$FD_HOME/inbox" "$FD_HOME/outbox"
+    chmod 0755 "$FD_HOME/outbox/.sent"
+
+    # inbox (panel): whoever sits at the panel must be able to delete a
+    # received entry by hand, but not the folder itself. The agent (user
+    # filedrop) puts the files there, so a sticky bit would forbid deleting
+    # all of them - hence 0777 without sticky bit. The folder itself cannot be
+    # removed: that needs write permission on /opt/filedrop (root, 0755).
+    chmod 0777 "$FD_HOME/inbox"
+
+    # outbox (laptop/PC): every user must be able to drop files in from their
+    # own account while the agent runs as the separate user "filedrop".
+    # 1777 like /tmp: anyone may add files and delete their own.
+    chmod 1777 "$FD_HOME/outbox"
+
+    # sshd checks authorized_keys while switched to the uid of the user
+    # itself, so the file must be READABLE for filedrop (via the group) but
+    # not writable by it: owner root, group filedrop, read-only for the group.
+    chown root:filedrop "$FD_HOME/.ssh"
+    chmod 0750 "$FD_HOME/.ssh"
+    if [ -f "$AUTH" ]; then
+        chown root:filedrop "$AUTH"
+        chmod 0640 "$AUTH"
+    fi
+
+    # state of the agent (pinned host keys); the unit may write only here and
+    # in /opt/filedrop
+    mkdir -p /var/lib/filedrop
+    touch /var/lib/filedrop/known_hosts
+    chown -R filedrop:filedrop /var/lib/filedrop
+    chmod 0750 /var/lib/filedrop
+    chmod 0644 /var/lib/filedrop/known_hosts
+    # configuration and key: readable by the agent, not writable by it
+    chown root:filedrop "$CONF_DIR"
+    chmod 0750 "$CONF_DIR"
+    # ssh refuses a private key that is readable by group/others, so the key
+    # belongs to the agent's own user with mode 0600
+    [ -f "$KEY" ] && { chown filedrop:filedrop "$KEY"; chmod 0600 "$KEY"; }
+    for f in agent.conf cleanup.conf; do
+        [ -f "$CONF_DIR/$f" ] && { chown root:filedrop "$CONF_DIR/$f"; chmod 0640 "$CONF_DIR/$f"; }
+    done
+}
+
+# Make sure sshd reads /etc/ssh/sshd_config.d/*.conf (older distributions do
+# not include that directory by default).
+ensure_sshd_include() {
+    cfg=/etc/ssh/sshd_config
+    [ -f "$cfg" ] || return 0
+    grep -Eq '^[[:space:]]*Include[[:space:]].*sshd_config\.d' "$cfg" && return 0
+
+    sshd_bin="$(command -v sshd 2>/dev/null || true)"
+    [ -n "$sshd_bin" ] || sshd_bin=/usr/sbin/sshd
+    cp -p "$cfg" "$cfg.filedrop-backup"
+    { echo "Include /etc/ssh/sshd_config.d/*.conf"; cat "$cfg.filedrop-backup"; } > "$cfg.filedrop-new"
+    if [ -x "$sshd_bin" ] && "$sshd_bin" -t -f "$cfg.filedrop-new" >/dev/null 2>&1; then
+        cat "$cfg.filedrop-new" > "$cfg"
+        say "added 'Include /etc/ssh/sshd_config.d/*.conf' to $cfg (backup: $cfg.filedrop-backup)"
+    else
+        warn "$cfg does not include sshd_config.d; add this line at the TOP of it: Include /etc/ssh/sshd_config.d/*.conf"
+    fi
+    rm -f "$cfg.filedrop-new"
+}
+
+reload_sshd() {
+    command -v systemctl >/dev/null 2>&1 || return 0
+    # reload (not restart) so the administrator's current SSH session survives
+    systemctl reload sshd >/dev/null 2>&1 || systemctl reload ssh >/dev/null 2>&1 || \
+        systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1 || true
+}
+
+# install_private_key <file> <authorize: yes|no>
+install_private_key() {
+    src="$1"
+    authorize="${2:-yes}"
+    [ -r "$src" ] || die "cannot read key file $src"
+    command -v ssh-keygen >/dev/null 2>&1 || die "ssh-keygen not found (install openssh-client)"
+    pub="$(ssh-keygen -y -f "$src" 2>/dev/null)" || die "$src is not a usable passphrase-less private key"
+    mkdir -p "$CONF_DIR" "$FD_HOME/.ssh"
+    cat "$src" > "$KEY"
+    chown filedrop:filedrop "$KEY" 2>/dev/null || true
+    chmod 0600 "$KEY"
+    if [ "$authorize" = "yes" ]; then
+        printf '%s %s filedrop\n' "$AUTH_OPTS" "$pub" > "$AUTH"
+        say "key installed: private $KEY, public half authorized in $AUTH"
+    else
+        say "private key installed: $KEY"
+    fi
+}
+
+authorize_key() {
+    arg="$1"
+    if [ -f "$arg" ]; then
+        k="$(head -n1 "$arg")"
+    else
+        k="$arg"
+    fi
+    case "$k" in
+        ssh-*|ecdsa-*|sk-*) ;;
+        *) die "that does not look like a public key: $k" ;;
+    esac
+    mkdir -p "$FD_HOME/.ssh"
+    touch "$AUTH"
+    if grep -qF -- "$k" "$AUTH" 2>/dev/null; then
+        say "this key is already authorized"
+    else
+        printf '%s %s\n' "$AUTH_OPTS" "$k" >> "$AUTH"
+        say "public key authorized"
+    fi
+}
+
+generate_key() {
+    command -v ssh-keygen >/dev/null 2>&1 || die "ssh-keygen not found (install openssh-client)"
+    tmp="$(mktemp -d)"
+    ssh-keygen -q -t ed25519 -N '' -C "filedrop@$(hostname)" -f "$tmp/key" || die "ssh-keygen failed"
+    install_private_key "$tmp/key" no
+    pubkey="$(cat "$tmp/key.pub")"
+    rm -rf "$tmp"
+    echo
+    echo "A new key pair was generated on this machine."
+    echo "Now authorize the PUBLIC key on the panel(s) this machine should send to:"
+    echo
+    echo "    sudo filedrop-setup --authorize '$pubkey'"
+    echo
+}
+
+enable_services() {
+    command -v systemctl >/dev/null 2>&1 || { warn "systemctl not found; start filedrop-agent manually"; return 0; }
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable filedrop-agent >/dev/null 2>&1 || true
+    systemctl restart filedrop-agent >/dev/null 2>&1 || true
+    systemctl enable --now filedrop-desktop.timer >/dev/null 2>&1 || true
+    systemctl enable --now filedrop-cleanup.timer >/dev/null 2>&1 || true
+}
+
+teardown() {
+    if command -v systemctl >/dev/null 2>&1; then
+        for u in filedrop-agent filedrop-desktop.timer filedrop-cleanup.timer; do
+            systemctl stop "$u" >/dev/null 2>&1 || true
+            systemctl disable "$u" >/dev/null 2>&1 || true
+        done
+    fi
+    # remove the shortcuts while the script is still there - otherwise a dead
+    # link to nowhere stays on every desktop
+    [ -x "$LIBDIR/filedrop-desktop-link.sh" ] && "$LIBDIR/filedrop-desktop-link.sh" --remove-all >/dev/null 2>&1
+    return 0
+}
+
+full_setup() {
+    ensure_user
+    ensure_dirs
+    ensure_sshd_include
+    "$LIBDIR/filedrop-desktop-link.sh" --all >/dev/null 2>&1 || true
+    reload_sshd
+    enable_services
+
+    if [ ! -f "$KEY" ] && [ ! -f "$AUTH" ]; then
+        warn "no SSH key installed yet. Create one with 'filedrop-keygen' and install it here with:"
+        warn "    sudo filedrop-setup --key /path/to/fleet_key"
+    fi
+    say "done. Check the configuration: /etc/filedrop/agent.conf, then: filedrop-agent check"
+}
+
+case "${1:-}" in
+    "" | --postinst)  full_setup ;;
+    --key)            [ -n "${2:-}" ] || die "--key needs a file"; ensure_user; install_private_key "$2" yes; ensure_dirs; enable_services ;;
+    --authorize)      [ -n "${2:-}" ] || die "--authorize needs a public key"; ensure_user; authorize_key "$2"; ensure_dirs ;;
+    --generate-key)   ensure_user; generate_key; ensure_dirs; enable_services ;;
+    --teardown)       teardown ;;
+    -h | --help)      sed -n '2,24p' "$0" ;;
+    *)                die "unknown option $1 (see --help)" ;;
+esac
+exit 0

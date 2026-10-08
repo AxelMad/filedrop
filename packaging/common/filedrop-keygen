@@ -1,0 +1,34 @@
+#!/bin/sh
+# filedrop-keygen - create the dedicated SSH key pair for a filedrop fleet.
+#
+# Run it ONCE, on the administrator's workstation (not on the classroom
+# machines), keep the result private and never commit it to a repository:
+#
+#   filedrop-keygen [DIRECTORY]        (default: ./filedrop-fleet-key)
+#
+# It writes DIRECTORY/fleet_key (private) and DIRECTORY/fleet_key.pub (public).
+# Then install the key on a machine with:   sudo filedrop-setup --key fleet_key
+# (the bulk rollout script scripts/rollout.sh does this for every machine).
+#
+# The key is only good for dropping files into /opt/filedrop/inbox of a panel:
+# sshd confines the account to an SFTP chroot (see filedrop.sshd.conf).
+
+set -eu
+dir="${1:-./filedrop-fleet-key}"
+
+command -v ssh-keygen >/dev/null 2>&1 || { echo "ssh-keygen not found (install openssh-client)" >&2; exit 1; }
+if [ -e "$dir/fleet_key" ]; then
+    echo "$dir/fleet_key already exists - refusing to overwrite it." >&2
+    exit 1
+fi
+
+mkdir -p "$dir"
+chmod 0700 "$dir"
+ssh-keygen -q -t ed25519 -N '' -C "filedrop-fleet" -f "$dir/fleet_key"
+chmod 0600 "$dir/fleet_key"
+
+echo "Created:"
+echo "  $dir/fleet_key       (PRIVATE - keep it secret, back it up, never publish it)"
+echo "  $dir/fleet_key.pub   (public)"
+echo
+echo "Install on a machine:   sudo filedrop-setup --key $dir/fleet_key"

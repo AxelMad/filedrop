@@ -1,0 +1,11 @@
+[Unit]
+Description=filedrop - runs the auto-cleanup at boot and once a day
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1d
+AccuracySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

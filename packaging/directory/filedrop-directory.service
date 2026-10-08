@@ -1,0 +1,20 @@
+[Unit]
+Description=filedrop-directory - hostname -> IP lookup for filedrop agents
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=filedrop-directory
+Group=filedrop-directory
+EnvironmentFile=/etc/filedrop-directory/env
+ExecStart=/usr/local/bin/filedrop-directory -addr :8781 -snapshot /var/lib/filedrop-directory/state.json
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/filedrop-directory
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

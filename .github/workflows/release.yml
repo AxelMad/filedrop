@@ -1,0 +1,34 @@
+name: Release
+
+# Publishes a GitHub Release with all packages when a tag like v2.1.0 is pushed.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go test ./...
+      - name: Install rpm tooling
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Build packages
+        env:
+          VERSION: ${{ github.ref_name }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: ./scripts/build.sh
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/* \
+            --title "filedrop ${{ github.ref_name }}" \
+            --generate-notes

@@ -1,2 +1,7 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Shell scripts, units and packaging files must keep LF endings even when
+# checked out on Windows - otherwise they fail on Linux ("bad interpreter").
+* text=auto eol=lf
+*.png binary
+*.gz binary
+*.deb binary
+*.rpm binary

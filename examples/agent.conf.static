@@ -1,0 +1,7 @@
+# Static addresses (DHCP reservations): the table lives in hosts.tsv.
+ROLE=auto
+HOSTNAME_PATTERN=^(?P<role>panel|pc)-(?P<site>.+)$
+PANEL_ROLES=panel
+CLIENT_ROLES=pc
+RESOLVE_MODE=static
+STATIC_HOSTS_FILE=/etc/filedrop/hosts.tsv

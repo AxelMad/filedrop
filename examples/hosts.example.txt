@@ -1,0 +1,5 @@
+# one hostname or IP per line; text after the first space is ignored
+pc-room101     laptop in room 101
+panel-room101  panel in room 101
+pc-room102
+panel-room102
